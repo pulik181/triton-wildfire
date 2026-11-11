@@ -15,13 +15,11 @@ st.set_page_config(
 )
 
 # ==============================================================================
-# 1. СПУТНИКОВЫЕ ДАННЫЕ NASA FIRMS ЗА СЕЗОН 2026 ГОДА ПО РЕГИОНАМ КАЗАХСТАНА
+# 1. СПУТНИКОВЫЕ ДАННЫЕ NASA FIRMS (СЕЗОН 2026 ГОДА)
 # ==============================================================================
 DATASETS_2026 = {
     "Абайская область (Резерват «Семей Орманы» — Июль 2026)": {
         "zoom": 11,
-        "risk_ru": "КРИТИЧЕСКИЙ (Хвойный массив)",
-        "risk_en": "CRITICAL (Pine Forest Reserve)",
         "csv": """satellite,latitude,longitude,acq_date,acq_time,frp,confidence,sensor
 Terra,50.4124,80.2415,2026-07-14,05:18,148.2,94,MODIS
 Aqua,50.4350,80.2780,2026-07-14,08:42,224.5,100,MODIS
@@ -63,8 +61,6 @@ Suomi-NPP,50.4950,80.3600,2026-07-14,07:50,1.6,40,VIIRS""",
     },
     "Костанайская область (Аулиекольский массив — Август 2026)": {
         "zoom": 11,
-        "risk_ru": "ВЫСОКИЙ (Лесостепная зона)",
-        "risk_en": "HIGH (Forest-Steppe Zone)",
         "csv": """satellite,latitude,longitude,acq_date,acq_time,frp,confidence,sensor
 Terra,52.3410,64.0820,2026-08-19,06:10,132.0,91,MODIS
 Aqua,52.3620,64.1150,2026-08-19,09:25,184.5,97,MODIS
@@ -91,8 +87,6 @@ Suomi-NPP,52.3700,64.1280,2026-08-19,08:15,1.7,42,VIIRS""",
     },
     "Карагандинская область (Степной массив — Сентябрь 2026)": {
         "zoom": 11,
-        "risk_ru": "ВЫСОКИЙ (Быстрые степные палы)",
-        "risk_en": "HIGH (Rapid Steppe Fires)",
         "csv": """satellite,latitude,longitude,acq_date,acq_time,frp,confidence,sensor
 Terra,49.8120,73.1150,2026-09-05,05:45,108.4,88,MODIS
 Aqua,49.8340,73.1480,2026-09-05,08:55,156.0,95,MODIS
@@ -115,8 +109,6 @@ NOAA-21,49.8410,73.1600,2026-09-05,08:10,1.8,44,VIIRS""",
     },
     "Алматинская область (Иле-Алатауский нацпарк — Август 2026)": {
         "zoom": 11,
-        "risk_ru": "ПОВЫШЕННЫЙ (Горно-лесной пояс)",
-        "risk_en": "ELEVATED (Mountain Forest Belt)",
         "csv": """satellite,latitude,longitude,acq_date,acq_time,frp,confidence,sensor
 Terra,43.1420,77.0410,2026-08-24,05:30,92.5,86,MODIS
 Aqua,43.1580,77.0690,2026-08-24,08:45,138.0,94,MODIS
@@ -134,7 +126,7 @@ NOAA-20,43.1490,77.0550,2026-08-24,07:52,2.0,45,VIIRS""",
     },
 }
 
-# Круглогодичные дежурные термоточки Казахстана (на случай 0 лесных очагов зимой в ноябре)
+# Дежурные промышленные очаги на случай зимнего отсутствия лесных пожаров
 WINTER_FALLBACK_CSV = """satellite,latitude,longitude,acq_date,acq_time,frp,confidence,sensor
 Terra,46.1620,53.4020,2026-11-11,06:40,94.0,88,MODIS
 Aqua,46.1850,53.4310,2026-11-11,09:50,118.5,92,MODIS
@@ -152,10 +144,9 @@ Suomi-NPP,46.1700,53.4150,2026-11-11,08:20,2.1,45,VIIRS"""
 
 
 # ==============================================================================
-# 2. ГЕОДЕЗИЧЕСКИЙ АЛГОРИТМ ГАРМОНИЗАЦИИ И СУТОЧНОЙ КАЛИБРОВКИ NRT
+# 2. ГЕОДЕЗИЧЕСКИЙ АЛГОРИТМ ГАРМОНИЗАЦИИ
 # ==============================================================================
 def haversine_km(lat1, lon1, lat2, lon2):
-    """Точное сферическое расстояние между координатами на поверхности Земли (км)."""
     r_earth = 6371.0
     lat1, lon1, lat2, lon2 = map(np.radians, [lat1, lon1, lat2, lon2])
     dlat = lat2 - lat1
@@ -175,7 +166,6 @@ def run_geodesic_harmonization(
     reg_b: float = 1.03,
     lang: str = "RU",
 ):
-    """Научный пайплайн гармонизации MODIS (1 км) и VIIRS (375 м) для синхронных и Live NRT потоков."""
     expected_cols = [
         "cluster_id",
         "grid_lat",
@@ -249,17 +239,14 @@ def run_geodesic_harmonization(
     if len(df_viirs) == 0 and len(df_modis) > 0:
         df_viirs = df_modis.copy()
 
-    # Шаг 1. Отсечение низкоэнергетического шума
     viirs_clean = (
         df_viirs[df_viirs["frp"] >= min_viirs_frp].copy().reset_index(drop=True)
     )
     noise_removed = int(len(df_viirs) - len(viirs_clean))
 
-    # Определяем режим: однодневный синхронный эталон или многодневный асинхронный Live NRT поток
     n_dates = df["acq_date"].nunique() if "acq_date" in df.columns else 1
     is_live_async = (n_dates > 1) or (len(df_viirs) > 60)
 
-    # Шаг 2. Сферическая кластеризация в радиусе эквивалентного пикселя MODIS (~1.11 км)
     radius_km = grid_deg * 111.32
     used = np.zeros(len(viirs_clean), dtype=bool)
     clusters = []
@@ -282,12 +269,11 @@ def run_geodesic_harmonization(
         sum_frp = round(float(sub["frp"].sum()), 1)
         base_harm_frp = round(float(reg_a * (sum_frp**reg_b)), 1)
 
-        # Ко-локация с пикселями MODIS
         modis_ref = np.nan
         modis_sat = (
-            "🌙 VIIRS-Only (Ночной/Малый)"
+            "🌙 VIIRS-Only (Ночной)"
             if lang == "RU"
-            else "🌙 VIIRS-Only (Night/Small)"
+            else "🌙 VIIRS-Only (Night)"
         )
         if len(df_modis) > 0:
             m_dists = haversine_km(
@@ -302,7 +288,6 @@ def run_geodesic_harmonization(
                     modis_ref = round(float(df_modis.loc[min_idx, "frp"]), 1)
                     modis_sat = str(df_modis.loc[min_idx, "satellite"])
             else:
-                # В Live NRT режиме учитываем расширение пикселя MODIS на краю полосы обзора (до 2.5 км)
                 m_near = df_modis[m_dists <= 2.5]
                 if len(m_near) > 0:
                     modis_ref = round(float(m_near["frp"].sum()), 1)
@@ -310,7 +295,6 @@ def run_geodesic_harmonization(
                         sorted(set(m_near["satellite"].astype(str)))
                     )
 
-        # В многодневном Live NRT потоке нормируем разницу дневных и ночных витков
         if not np.isnan(modis_ref) and is_live_async:
             n_passes = max(1.0, len(sub) / 3.0)
             pass_norm_viirs = np.clip(
@@ -337,22 +321,22 @@ def run_geodesic_harmonization(
 
         if lang == "RU":
             status = (
-                "🔥 Крупный верховой очаг"
+                "🔥 Крупный очаг"
                 if harm_frp >= 150
                 else (
                     "⚠️ Активный фронт"
                     if harm_frp >= 85
-                    else "🟢 Локализованный очаг"
+                    else "🟢 Локализован"
                 )
             )
         else:
             status = (
-                "🔥 High-Intensity Crown Fire"
+                "🔥 High-Intensity"
                 if harm_frp >= 150
                 else (
-                    "⚠️ Active Fire Front"
+                    "⚠️ Active Front"
                     if harm_frp >= 85
-                    else "🟢 Localized Hotspot"
+                    else "🟢 Localized"
                 )
             )
 
@@ -377,7 +361,6 @@ def run_geodesic_harmonization(
         df_harm = pd.DataFrame(columns=expected_cols)
     else:
         df_harm = pd.DataFrame(clusters)
-        # В режиме Live NRT поднимаем все парные очаги (MODIS + VIIRS) наверх таблицы
         if is_live_async:
             df_harm = (
                 df_harm.sort_values(
@@ -390,7 +373,6 @@ def run_geodesic_harmonization(
             ]
         df_harm = df_harm.drop(columns=["has_modis"])
 
-    # Шаг 3. Расчет статистических метрик валидации (R^2 и RMSE по ко-лоцированным парам)
     valid = (
         df_harm.dropna(subset=["modis_ref_frp"])
         if len(df_harm) > 0
@@ -414,7 +396,6 @@ def run_geodesic_harmonization(
 
 
 def export_to_geojson(df_harm: pd.DataFrame) -> str:
-    """Формирует стандартный GeoJSON для импорта в ГИС-системы МЧС (QGIS / ArcGIS)."""
     features = []
     if df_harm is not None and len(df_harm) > 0:
         for _, row in df_harm.iterrows():
@@ -454,7 +435,6 @@ def export_to_geojson(df_harm: pd.DataFrame) -> str:
 
 
 def fetch_nasa_live_stream(api_key: str, bbox: str, days: int) -> pd.DataFrame:
-    """Опрашивает сразу 3 спутниковых потока NASA FIRMS NRT (MODIS + VIIRS S-NPP + NOAA-20)."""
     streams = [
         ("MODIS_NRT", "MODIS", "Terra/Aqua"),
         ("VIIRS_SNPP_NRT", "VIIRS", "Suomi-NPP"),
@@ -478,33 +458,25 @@ def fetch_nasa_live_stream(api_key: str, bbox: str, days: int) -> pd.DataFrame:
                     frames.append(part)
         except Exception:
             continue
-
     if len(frames) > 0:
         return pd.concat(frames, ignore_index=True)
     return pd.DataFrame()
 
 
 # ==============================================================================
-# 3. БОКОВАЯ ПАНЕЛЬ И ПЕРЕКЛЮЧАТЕЛЬ ЯЗЫКА (RU / EN ДЛЯ GLOBAL JUDGING)
+# 3. БОКОВАЯ ПАНЕЛЬ УПРАВЛЕНИЯ
 # ==============================================================================
 lang_choice = st.sidebar.radio(
-    "🌐 Language / Язык интерфейса:",
+    "🌐 Language / Язык:",
     ["🇷🇺 Русский (Локальная защита)", "🇺🇸 English (NASA Global Judging)"],
 )
 LANG = "RU" if "Русский" in lang_choice else "EN"
 
-if LANG == "RU":
-    st.title("🛰️ Triton Wildfire: Гармонизация термоточек MODIS и VIIRS (2026)")
-    st.markdown(
-        "**NASA Space Apps Challenge 2026** | Локация: **Almaty, Kazakhstan** | "
-        "Геодезическая система ко-локации и калибровки данных NASA FIRMS (Terra, Aqua, S-NPP, NOAA-20, NOAA-21)."
-    )
-else:
-    st.title("🛰️ Triton Wildfire: Harmonization of MODIS & VIIRS Hot Spots (2026)")
-    st.markdown(
-        "**NASA Space Apps Challenge 2026** | Location: **Almaty, Kazakhstan** | "
-        "Geodesic Cross-Sensor Co-location & FRP Calibration System for NASA FIRMS (Terra, Aqua, S-NPP, NOAA-20/21)."
-    )
+st.title("🛰️ Triton Wildfire: Harmonization of MODIS & VIIRS Hot Spots (2026)")
+st.markdown(
+    "**NASA Space Apps Challenge 2026** | **Almaty, Kazakhstan** | "
+    "Геодезическая ко-локация и калибровка данных NASA FIRMS (Terra, Aqua, S-NPP, NOAA-20, NOAA-21)."
+)
 
 st.sidebar.header("📡 Источник данных" if LANG == "RU" else "📡 Data Source")
 source_mode = st.sidebar.radio(
@@ -518,7 +490,6 @@ source_mode = st.sidebar.radio(
 
 selected_region_name = "Custom Region"
 zoom_level = 11
-risk_label = "ВЫСОКИЙ" if LANG == "RU" else "HIGH"
 
 if source_mode == "Спутниковые пролеты РК (Сезон 2026)":
     selected_region_name = st.sidebar.selectbox(
@@ -530,7 +501,6 @@ if source_mode == "Спутниковые пролеты РК (Сезон 2026)"
     reg_info = DATASETS_2026[selected_region_name]
     raw_df = pd.read_csv(io.StringIO(reg_info["csv"]))
     zoom_level = reg_info["zoom"]
-    risk_label = reg_info["risk_ru"] if LANG == "RU" else reg_info["risk_en"]
 
 elif source_mode == "Загрузить свой CSV из NASA FIRMS":
     uploaded = st.sidebar.file_uploader(
@@ -546,15 +516,11 @@ elif source_mode == "Загрузить свой CSV из NASA FIRMS":
             raw_df["satellite"] = "NASA-FIRMS"
         st.sidebar.success("✅ Файл NASA FIRMS успешно загружен!")
     else:
-        st.info(
-            "👈 Загрузите CSV-файл в панели слева или выберите данные сезона 2026."
-        )
+        st.info("👈 Загрузите CSV-файл в панели слева.")
         st.stop()
 
 elif source_mode == "Живой запрос к NASA FIRMS API (2026)":
-    st.sidebar.markdown(
-        "Официальный ключ NASA подключен (`5000 запросов / 10 мин`)."
-    )
+    st.sidebar.markdown("Официальный ключ NASA подключен.")
     api_key = st.sidebar.text_input(
         "NASA FIRMS MAP_KEY:",
         value="80a6f5d571ec76ae401db755e53782bb",
@@ -570,7 +536,7 @@ elif source_mode == "Живой запрос к NASA FIRMS API (2026)":
     )
     days_back = st.sidebar.slider("Глубина сканирования (дней):", 1, 5, 3)
     use_winter_fallback = st.sidebar.checkbox(
-        "Показывать дежурные пром-очаги РК (Тенгиз / Темиртау), если в лесах 0 пожаров из-за снега",
+        "Дежурные очаги РК (Тенгиз / Темиртау), если 0 из-за снега",
         value=True,
     )
 
@@ -591,9 +557,7 @@ elif source_mode == "Живой запрос к NASA FIRMS API (2026)":
         if not api_key:
             st.sidebar.error("Укажите ваш MAP_KEY!")
             st.stop()
-        with st.spinner(
-            "Опрос спутников Terra, Aqua, Suomi-NPP и NOAA-20 через NASA FIRMS..."
-        ):
+        with st.spinner("Опрос спутников NASA FIRMS..."):
             fetched = fetch_nasa_live_stream(
                 api_key, bbox_map[live_sector], days_back
             )
@@ -602,7 +566,7 @@ elif source_mode == "Живой запрос к NASA FIRMS API (2026)":
 
     live_data = st.session_state.get("live_df", pd.DataFrame())
     selected_region_name = (
-        f"NASA Live Stream: {st.session_state.get('live_sector_name', live_sector)}"
+        f"NASA Live: {st.session_state.get('live_sector_name', live_sector)}"
     )
 
     if len(live_data) > 0:
@@ -616,10 +580,10 @@ elif source_mode == "Живой запрос к NASA FIRMS API (2026)":
             raw_df = pd.read_csv(io.StringIO(WINTER_FALLBACK_CSV))
             zoom_level = 6
             selected_region_name = (
-                "Дежурный зимний мониторинг РК (Атырау / Тенгиз и Темиртау — Ноябрь 2026)"
+                "Дежурный мониторинг РК (Атырау / Тенгиз и Темиртау)"
             )
             st.sidebar.warning(
-                "❄️ В лесах РК сейчас 0 пожаров (снежный покров). Включен показ круглогодичных техногенных термоточек РК (Тенгиз, Темиртау)."
+                "❄️ В лесах РК сейчас снег. Показаны круглогодичные тепловые объекты РК (Тенгиз, Темиртау)."
             )
         else:
             raw_df = pd.DataFrame(
@@ -634,9 +598,6 @@ elif source_mode == "Живой запрос к NASA FIRMS API (2026)":
                 ]
             )
             zoom_level = 5
-            st.sidebar.info(
-                "❄️ Спутники NASA вернули 0 открытых пожаров за выбранный период."
-            )
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("🗺️ Отображение карты" if LANG == "RU" else "🗺️ Map Layers")
@@ -687,7 +648,7 @@ df_modis, df_viirs, df_harmonized, removed_noise, r2_val, rmse_val = (
 )
 
 # ==============================================================================
-# 4. ВЕРХНИЕ КАРТОЧКИ МЕТРИК (ТОЧНЫЙ РАСЧЕТ ПАРНЫХ И АВТОНОМНЫХ ОЧАГОВ)
+# 4. ВЕРХНИЕ КАРТОЧКИ МЕТРИК
 # ==============================================================================
 valid_pairs = (
     df_harmonized.dropna(subset=["modis_ref_frp"])
@@ -721,18 +682,18 @@ viirs_only_count = max(0, len(df_harmonized) - len(valid_pairs))
 
 c1, c2, c3, c4, c5 = st.columns(5)
 c1.metric(
-    "Эталон MODIS (1 км)" if LANG == "RU" else "MODIS Reference (1 km)",
+    "Эталон MODIS (1 км)",
     f"{len(df_modis)} очагов",
-    f"Парный FRP: {coloc_modis_sum:.1f} MW",
+    f"FRP: {coloc_modis_sum:.1f} MW",
 )
 c2.metric(
-    "Сырой VIIRS (375 м)" if LANG == "RU" else "Raw VIIRS (375 m)",
+    "Сырой VIIRS (375 м)",
     f"{len(df_viirs)} точек",
     delta=f"+{max(0, len(df_viirs) - len(df_harmonized))} дублей сжато",
     delta_color="inverse",
 )
 c3.metric(
-    "Кластеры Triton (1 км)" if LANG == "RU" else "Triton Clusters (1 km)",
+    "Кластеры Triton (1 км)",
     f"{len(df_harmonized)} очагов",
     delta=(
         f"1-в-1 с MODIS (Шум: -{removed_noise})"
@@ -741,31 +702,18 @@ c3.metric(
     ),
 )
 c4.metric(
-    "Сходимость энергии FRP" if LANG == "RU" else "Paired FRP Agreement",
+    "Сходимость энергии FRP",
     f"{agreement_pct:.1f}%",
     delta=f"{coloc_harm_sum:.1f} MW vs {coloc_modis_sum:.1f} MW",
 )
 c5.metric(
-    "Точность модели (R²)" if LANG == "RU" else "Model Validity (R²)",
+    "Точность модели (R²)",
     f"{r2_val:.4f}",
     delta=f"RMSE: ±{rmse_val} MW",
 )
 
-if len(raw_df) == 0:
-    st.warning(
-        "❄️ За выбранные сутки спутники NASA не зафиксировали открытых лесных пожаров над заснеженной территорией. "
-        "Включите галочку «Показывать дежурные пром-очаги РК» слева или выберите летние пролеты 2026 года."
-    )
-else:
-    st.info(
-        f"📢 **Оперативная сводка 2026 ({selected_region_name}):** Уровень угрозы — **{risk_label}**. "
-        f"Сферический алгоритм Гаверсинуса сжал **{len(df_viirs)}** срабатываний VIIRS "
-        f"в **{len(df_harmonized)}** физических кластеров (подтвержденных пар MODIS+VIIRS: **{len(valid_pairs)}**, "
-        f"автономных ночных/малых очагов VIIRS: **{viirs_only_count}**, сходимость энергии: **{agreement_pct:.1f}%**, $R^2 = {r2_val}$)."
-    )
-
 # ==============================================================================
-# 5. ВКЛАДКИ ПРОЕКТА
+# 5. ВКЛАДКИ ПРОЕКТА (СТРОГО 4 КЛАССИЧЕСКИХ ЭКРАНА)
 # ==============================================================================
 tab1, tab2, tab3, tab4 = st.tabs([
     "🗺️ Карта и Ко-локация 2026",
@@ -780,7 +728,7 @@ with tab1:
     )
     st.markdown(
         "🔴 **Круги MODIS (1 км)** | 🟠 **Точки VIIRS (375 м)** | "
-        "🟦 **Голубые квадраты — Гармонизированные ячейки Triton ($1\\times 1\\text{ км}$, без краевых разрывов)**"
+        "🟧 **Оранжево-красные ячейки Triton ($1\\times 1\\text{ км}$)**"
     )
 
     if (
@@ -812,7 +760,7 @@ with tab1:
             folium.Circle(
                 location=[float(r["latitude"]), float(r["longitude"])],
                 radius=550,
-                color="#ff3b30",
+                color="#ff2200",
                 weight=2,
                 fill=True,
                 fill_opacity=0.25,
@@ -824,9 +772,9 @@ with tab1:
             folium.CircleMarker(
                 location=[float(r["latitude"]), float(r["longitude"])],
                 radius=4,
-                color="#ff9500",
+                color="#ff9900",
                 fill=True,
-                fill_color="#ff9500",
+                fill_color="#ff9900",
                 fill_opacity=0.9,
                 popup=f"VIIRS ({r['satellite']}) | FRP: {r['frp']} МВт | Conf: {r['confidence']}",
             ).add_to(m)
@@ -845,7 +793,7 @@ with tab1:
                         float(r["grid_lon"]) + half,
                     ],
                 ],
-                color="#00e5ff",
+                color="#ff3d00",
                 weight=2,
                 fill=True,
                 fill_opacity=0.35,
@@ -858,7 +806,6 @@ with tab1:
 
     st_folium(m, width=1150, height=500, returned_objects=[])
 
-    # Таблица ко-локации + Двойной экспорт (CSV и GeoJSON)
     col_d1, col_d2, col_d3 = st.columns([2.5, 1, 1])
     with col_d1:
         st.markdown(
@@ -867,15 +814,15 @@ with tab1:
     with col_d2:
         csv_export = df_harmonized.to_csv(index=False).encode("utf-8")
         st.download_button(
-            "⬇️ Скачать CSV (Для отчетов)",
+            "⬇️ Скачать CSV",
             data=csv_export,
-            file_name="triton_harmonized_validated_2026.csv",
+            file_name="triton_harmonized_2026.csv",
             mime="text/csv",
         )
     with col_d3:
         geojson_export = export_to_geojson(df_harmonized).encode("utf-8")
         st.download_button(
-            "🌍 Скачать GeoJSON (Для ГИС МЧС)",
+            "🌍 Скачать GeoJSON (ГИС МЧС)",
             data=geojson_export,
             file_name="triton_clusters_2026.geojson",
             mime="application/geo+json",
@@ -887,11 +834,6 @@ with tab2:
     st.subheader(
         "Построчное совпадение мощности FRP (MODIS vs Triton) по ко-лоцированным очагам"
     )
-    st.markdown(
-        "График ниже доказывает, что после геодезической группировки и калибровки "
-        f"каждый парный кластер **Triton** практически идеально ложится на эталонные измерения **MODIS** ($R^2 = {r2_val}$)."
-    )
-
     if len(valid_pairs) > 0:
         per_fire_df = (
             valid_pairs.head(25)[[
@@ -908,8 +850,6 @@ with tab2:
             "3. Сырая сумма VIIRS без калибровки (МВт)",
         ]
         st.bar_chart(per_fire_df, height=360)
-    else:
-        st.info("Нет парных кластеров для построения диаграммы.")
 
     st.markdown("---")
     st.subheader(
@@ -925,7 +865,6 @@ with tab2:
         val if y < 2012 else (int(val * 3.1) if y < 2023 else int(val * 3.65))
         for y, val in zip(years, harmonized_history)
     ]
-
     trend_df = pd.DataFrame({
         "Год": years,
         "1. Сырой поток MODIS+VIIRS (Ложный скачок после 2012 и 2023 гг.)": (
@@ -935,7 +874,6 @@ with tab2:
             harmonized_history
         ),
     }).set_index("Год")
-
     st.line_chart(trend_df, height=380)
 
 with tab3:
@@ -960,10 +898,6 @@ with tab3:
     st.dataframe(calendar_2026.T, use_container_width=True)
     st.markdown("#### 📊 Динамика сезонных пиков по регионам Казахстана")
     st.line_chart(calendar_2026, height=350)
-    st.success(
-        "📌 **Оперативный вывод для МЧС РК:** Пик горения сосновых боров (Семей Орманы, Костанай) приходится "
-        "на **июнь–август** (индекс 93–98), а степных массивов Центрального Казахстана — на **апрель–май** и **август–сентябрь**."
-    )
 
 with tab4:
     st.subheader("🔗 Прямая верификация через порталы NASA (Координаты 2026)")
@@ -990,16 +924,15 @@ with tab4:
     st.markdown("---")
     st.markdown("""
     ### 🔬 Математический аппарат гармонизации (Geodesic Co-location & Power-Law FRP)
-    1. **Отсечение порога чувствительности (Detection Limit Cutoff):** Исключение низкоэнергетических тепловых аномалий VIIRS ($FRP < 3.0\\text{ МВт}$), лежащих ниже физического порога детекции болометров MODIS.
-    2. **Сферическая геодезическая кластеризация (Haversine Spatial Clustering):** Чтобы избежать разрыва очагов на границах округления координат, группировка выполняется по сферическому расстоянию Гаверсинуса ($d \\le 1.11\\text{ км}$):
-       $$d = 2R \\arcsin\\left(\\sqrt{\\sin^2\\left(\\frac{\\Delta \\phi}{2}\\right) + \\cos(\\phi_1)\\cos(\\phi_2)\\sin^2\\left(\\frac{\\Delta \\lambda}{2}\\right)}\\right)$$
-    3. **Нелинейная степенная калибровка мощности и суточная нормализация (Power-Law & Diurnal NRT Calibration):**
+    1. **Сферическая геодезическая кластеризация (Haversine Spatial Clustering):**
+       $$d = 2R \\arcsin\\left(\\sqrt{\\sin^2\\left(\\frac{\\Delta \\phi}{2}\\right) + \\cos(\\phi_1)\\cos(\\phi_2)\\sin^2\\left(\\frac{\\Delta \\lambda}{2}\\right)}\\right) \\le 1.11\\text{ км}$$
+    2. **Степенная нелинейная калибровка мощности (Power-Law & Diurnal NRT):**
        $$FRP_{\\text{harmonized}} = a \\cdot \\left(\\sum_{i \\in \\text{Cluster}} FRP_{\\text{VIIRS}, i}\\right)^b \\quad (a = 0.86, \\; b = 1.03, \\; R^2 > 0.99)$$
 
     ### 📄 Обязательное цитирование источников (NASA Space Apps Rules 5.6 & 8.2)
     * **NASA FIRMS (2026):** Fire Information for Resource Management System, NASA Earthdata (`https://firms.modaps.eosdis.nasa.gov/`).
     * **MODIS Collection 6.1:** NASA Terra & Aqua Active Fire Product (MCD14ML / MOD14 / MYD14).
     * **VIIRS 375m Active Fire Product:** NASA/NOAA Suomi-NPP, NOAA-20 (JPSS-1) & NOAA-21 (JPSS-2) Active Fire Products (VNP14IMGTDL_NRT / VJ114IMGTDL_NRT / VJ214IMGTDL_NRT).
-    * **Methodology Reference:** Schroeder, W., Oliva, P., Giglio, L., & Csiszar, I. A. (2014). *The New VIIRS 375 m active fire detection data product: Algorithm description and initial assessment*. Remote Sensing of Environment.
+    * **Methodology Reference:** Schroeder, W., et al. (2014). *The New VIIRS 375 m active fire detection data product*. Remote Sensing of Environment.
     * **License:** Open Source under **Apache License 2.0**.
     """)
