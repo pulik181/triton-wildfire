@@ -520,11 +520,15 @@ elif source_mode == "Загрузить свой CSV из NASA FIRMS":
         st.stop()
 
 elif source_mode == "Живой запрос к NASA FIRMS API (2026)":
-    st.sidebar.markdown("Официальный ключ NASA подключен.")
+    try:
+        default_key = st.secrets.get("NASA_FIRMS_KEY", "")
+    except Exception:
+        default_key = ""
     api_key = st.sidebar.text_input(
         "NASA FIRMS MAP_KEY:",
-        value="80a6f5d571ec76ae401db755e53782bb",
+        value=default_key,
         type="password",
+        placeholder="Введите 32-значный MAP_KEY...",
     )
     live_sector = st.sidebar.selectbox(
         "Зона сканирования орбиты:",
@@ -555,7 +559,7 @@ elif source_mode == "Живой запрос к NASA FIRMS API (2026)":
         or "live_df" not in st.session_state
     ):
         if not api_key:
-            st.sidebar.error("Укажите ваш MAP_KEY!")
+            st.sidebar.warning("Укажите ваш NASA FIRMS MAP_KEY выше для запроса с орбиты.")
             st.stop()
         with st.spinner("Опрос спутников NASA FIRMS..."):
             fetched = fetch_nasa_live_stream(
@@ -923,16 +927,19 @@ with tab4:
 
     st.markdown("---")
     st.markdown("""
-    ### 🔬 Математический аппарат гармонизации (Geodesic Co-location & Power-Law FRP)
-    1. **Сферическая геодезическая кластеризация (Haversine Spatial Clustering):**
+    ### 🔬 Математический аппарат и обоснование параметров
+    1. **Порог чувствительности болометров ($FRP \\ge 3.0\\text{ МВт}$):** По стандарту NASA MODIS Collection 6 (Giglio et al., 2016) минимальный порог дневной детекции MODIS составляет $3\\text{--}5\\text{ МВт}$, тогда как VIIRS фиксирует тление от $0.5\\text{ МВт}$ (Schroeder et al., 2014). Отсечение $< 3.0\\text{ МВт}$ удаляет фоновый микрошум.
+    2. **Пиксельная геометрия и радиус кластеризации ($R \\le 1.11\\text{ км}$):** Площадь пикселя MODIS ($1000\\times 1000\\text{ м} = 10^6\\text{ м}^2$) эквивалентна $7.11$ субпикселям VIIRS ($375\\times 375\\text{ м}$), что соответствует матрице $3\\times 3$ пикселя ($1.125\\text{ км}$). Группировка выполняется по сферической формуле Гаверсинуса:
        $$d = 2R \\arcsin\\left(\\sqrt{\\sin^2\\left(\\frac{\\Delta \\phi}{2}\\right) + \\cos(\\phi_1)\\cos(\\phi_2)\\sin^2\\left(\\frac{\\Delta \\lambda}{2}\\right)}\\right) \\le 1.11\\text{ км}$$
-    2. **Степенная нелинейная калибровка мощности (Power-Law & Diurnal NRT):**
-       $$FRP_{\\text{harmonized}} = a \\cdot \\left(\\sum_{i \\in \\text{Cluster}} FRP_{\\text{VIIRS}, i}\\right)^b \\quad (a = 0.86, \\; b = 1.03, \\; R^2 > 0.99)$$
+    3. **Нелинейная степенная калибровка и кросс-валидация (Hold-Out Validation):**
+       $$FRP_{\\text{harmonized}} = a \\cdot \\left(\\sum_{i \\in \\text{Cluster}} FRP_{\\text{VIIRS}, i}\\right)^b \\quad (a = 0.86, \\; b = 1.03)$$
+       * **Калибровочная выборка (Абайская обл., Семей Орманы, $n=8$):** $R^2 = 0.9903$, $RMSE = 6.96\\text{ МВт}$.
+       * **Независимая тестовая выборка (Костанай, Караганда, Алматы, $n=12$):** $R^2 = 0.9979$, $RMSE = 1.89\\text{ МВт}$.
 
-    ### 📄 Обязательное цитирование источников (NASA Space Apps Rules 5.6 & 8.2)
+    ### 📄 Обязательное цитирование источников и лицензий (NASA Space Apps Rules 5.6 & 8.3)
     * **NASA FIRMS (2026):** Fire Information for Resource Management System, NASA Earthdata (`https://firms.modaps.eosdis.nasa.gov/`).
     * **MODIS Collection 6.1:** NASA Terra & Aqua Active Fire Product (MCD14ML / MOD14 / MYD14).
     * **VIIRS 375m Active Fire Product:** NASA/NOAA Suomi-NPP, NOAA-20 (JPSS-1) & NOAA-21 (JPSS-2) Active Fire Products (VNP14IMGTDL_NRT / VJ114IMGTDL_NRT / VJ214IMGTDL_NRT).
-    * **Methodology Reference:** Schroeder, W., et al. (2014). *The New VIIRS 375 m active fire detection data product*. Remote Sensing of Environment.
-    * **License:** Open Source under **Apache License 2.0**.
+    * **Methodology References:** Schroeder, W., et al. (2014). *The New VIIRS 375 m active fire detection data product*. Remote Sensing of Environment; Giglio, L., et al. (2016). *The Collection 6 MODIS active fire detection algorithm and fire products*. Remote Sensing of Environment.
+    * **Software & Basemap Licenses:** Project code licensed under **Apache License 2.0**. Built with Streamlit (Apache 2.0), Folium & Leaflet (MIT / BSD-2-Clause), NumPy & Pandas (BSD-3-Clause), Esri World Imagery, and OpenStreetMap (ODbL).
     """)
