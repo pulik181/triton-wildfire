@@ -99,8 +99,6 @@ pip install -r requirements.txt
 4. Launch the application:
 streamlit run app.py
 
-The interactive platform will launch locally at http://localhost:8501.
-
 📂 Repository Structure 
 triton-wildfire/
 ├── .gitignore               # Git exclusion rules
