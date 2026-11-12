@@ -464,7 +464,7 @@ def fetch_nasa_live_stream(api_key: str, bbox: str, days: int) -> pd.DataFrame:
 
 
 # ==============================================================================
-# 3. БОКОВАЯ ПАНЕЛЬ УПРАВЛЕНИЯ
+# 3. БОКОВАЯ ПАНЕЛЬ УПРАВЛЕНИЯ (ЖИВОЙ РЕЖИМ НА ПЕРВОМ МЕСТЕ)
 # ==============================================================================
 lang_choice = st.sidebar.radio(
     "🌐 Language / Язык:",
@@ -482,44 +482,16 @@ st.sidebar.header("📡 Источник данных" if LANG == "RU" else "�
 source_mode = st.sidebar.radio(
     "Режим работы:" if LANG == "RU" else "Operation Mode:",
     [
-        "Спутниковые пролеты РК (Сезон 2026)",
-        "Загрузить свой CSV из NASA FIRMS",
         "Живой запрос к NASA FIRMS API (2026)",
+        "Загрузить свой CSV из NASA FIRMS",
+        "Спутниковые пролеты РК (Сезон 2026)",
     ],
 )
 
 selected_region_name = "Custom Region"
 zoom_level = 11
 
-if source_mode == "Спутниковые пролеты РК (Сезон 2026)":
-    selected_region_name = st.sidebar.selectbox(
-        "📍 Регион Казахстана (2026):"
-        if LANG == "RU"
-        else "📍 Kazakhstan Region (2026):",
-        list(DATASETS_2026.keys()),
-    )
-    reg_info = DATASETS_2026[selected_region_name]
-    raw_df = pd.read_csv(io.StringIO(reg_info["csv"]))
-    zoom_level = reg_info["zoom"]
-
-elif source_mode == "Загрузить свой CSV из NASA FIRMS":
-    uploaded = st.sidebar.file_uploader(
-        "CSV с сайта firms.modaps.eosdis.nasa.gov:", type=["csv"]
-    )
-    if uploaded is not None:
-        raw_df = pd.read_csv(uploaded)
-        if "sensor" not in raw_df.columns:
-            raw_df["sensor"] = np.where(
-                raw_df.get("scan", 0.4) > 0.6, "MODIS", "VIIRS"
-            )
-        if "satellite" not in raw_df.columns:
-            raw_df["satellite"] = "NASA-FIRMS"
-        st.sidebar.success("✅ Файл NASA FIRMS успешно загружен!")
-    else:
-        st.info("👈 Загрузите CSV-файл в панели слева.")
-        st.stop()
-
-elif source_mode == "Живой запрос к NASA FIRMS API (2026)":
+if source_mode == "Живой запрос к NASA FIRMS API (2026)":
     try:
         default_key = st.secrets.get("NASA_FIRMS_KEY", "")
     except Exception:
@@ -558,15 +530,15 @@ elif source_mode == "Живой запрос к NASA FIRMS API (2026)":
         st.sidebar.button("🛰️ Запросить с орбиты (NASA Live)")
         or "live_df" not in st.session_state
     ):
-        if not api_key:
-            st.sidebar.warning("Укажите ваш NASA FIRMS MAP_KEY выше для запроса с орбиты.")
-            st.stop()
-        with st.spinner("Опрос спутников NASA FIRMS..."):
-            fetched = fetch_nasa_live_stream(
-                api_key, bbox_map[live_sector], days_back
-            )
-            st.session_state["live_df"] = fetched
-            st.session_state["live_sector_name"] = live_sector
+        if api_key:
+            with st.spinner("Опрос спутников NASA FIRMS..."):
+                fetched = fetch_nasa_live_stream(
+                    api_key, bbox_map[live_sector], days_back
+                )
+                st.session_state["live_df"] = fetched
+                st.session_state["live_sector_name"] = live_sector
+        else:
+            st.session_state["live_df"] = pd.DataFrame()
 
     live_data = st.session_state.get("live_df", pd.DataFrame())
     selected_region_name = (
@@ -587,7 +559,7 @@ elif source_mode == "Живой запрос к NASA FIRMS API (2026)":
                 "Дежурный мониторинг РК (Атырау / Тенгиз и Темиртау)"
             )
             st.sidebar.warning(
-                "❄️ В лесах РК сейчас снег. Показаны круглогодичные тепловые объекты РК (Тенгиз, Темиртау)."
+                "❄️ Показаны круглогодичные тепловые объекты РК (укажите MAP_KEY для живого потока)."
             )
         else:
             raw_df = pd.DataFrame(
@@ -602,6 +574,34 @@ elif source_mode == "Живой запрос к NASA FIRMS API (2026)":
                 ]
             )
             zoom_level = 5
+
+elif source_mode == "Загрузить свой CSV из NASA FIRMS":
+    uploaded = st.sidebar.file_uploader(
+        "CSV с сайта firms.modaps.eosdis.nasa.gov:", type=["csv"]
+    )
+    if uploaded is not None:
+        raw_df = pd.read_csv(uploaded)
+        if "sensor" not in raw_df.columns:
+            raw_df["sensor"] = np.where(
+                raw_df.get("scan", 0.4) > 0.6, "MODIS", "VIIRS"
+            )
+        if "satellite" not in raw_df.columns:
+            raw_df["satellite"] = "NASA-FIRMS"
+        st.sidebar.success("✅ Файл NASA FIRMS успешно загружен!")
+    else:
+        st.info("👈 Загрузите CSV-файл в панели слева.")
+        st.stop()
+
+elif source_mode == "Спутниковые пролеты РК (Сезон 2026)":
+    selected_region_name = st.sidebar.selectbox(
+        "📍 Регион Казахстана (2026):"
+        if LANG == "RU"
+        else "📍 Kazakhstan Region (2026):",
+        list(DATASETS_2026.keys()),
+    )
+    reg_info = DATASETS_2026[selected_region_name]
+    raw_df = pd.read_csv(io.StringIO(reg_info["csv"]))
+    zoom_level = reg_info["zoom"]
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("🗺️ Отображение карты" if LANG == "RU" else "🗺️ Map Layers")
