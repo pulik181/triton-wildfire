@@ -83,7 +83,7 @@ Parameters ($a = 0.87, b = 1.03$) were calibrated exclusively on the **Abai Regi
 ## 🚀 Quickstart & Local Installation
 
 ### Prerequisites
-* Python 3.11+ (recommended: 3.11 – 3.13)
+* Python 3.10, 3.11, or 3.12
 * Git
 
 ### Installation Steps
@@ -102,7 +102,7 @@ Parameters ($a = 0.87, b = 1.03$) were calibrated exclusively on the **Abai Regi
    pip install -r requirements.txt
    ```
 4. **(Optional) Configure your NASA FIRMS API Key:**
-   Create `.streamlit/secrets.toml` locally (or add it in Streamlit Cloud **Secrets**):
+   Create `.streamlit/secrets.toml` locally (or configure **Secrets** in Streamlit Cloud):
    ```toml
    NASA_FIRMS_KEY = "YOUR_32_CHARACTER_NASA_FIRMS_MAP_KEY"
    ```
@@ -110,3 +110,29 @@ Parameters ($a = 0.87, b = 1.03$) were calibrated exclusively on the **Abai Regi
    ```bash
    streamlit run app.py
    ```
+
+---
+
+## 📂 Repository Structure
+
+```text
+triton-wildfire/
+├── .gitattributes                 # Git LFS & line-ending normalization
+├── .gitignore                     # Excludes virtual environments, __pycache__, and .streamlit/secrets.toml
+├── LICENSE                        # Apache License 2.0
+├── README.md                      # Scientific & technical documentation
+├── app.py                         # Bilingual (EN/RU) Streamlit application & Triton Engine v2.0
+├── burabay_nasa_firms_2026.csv    # External hold-out validation dataset (Burabay National Park, n=18)
+└── requirements.txt               # Pinned cloud deployment dependencies
+```
+
+---
+
+## 📚 NASA Data Sources, Citations & Licenses (Rules 5.6 & 8.3 Compliance)
+
+* **NASA FIRMS (2026):** Fire Information for Resource Management System, NASA Earthdata (`https://firms.modaps.eosdis.nasa.gov/`).
+* **MODIS Collection 6.1:** NASA Terra & Aqua Active Fire Product (`MCD14ML` / `MOD14` / `MYD14`) — Giglio, L., Schroeder, W., & Justice, C. O. (2016). *The Collection 6 MODIS active fire detection algorithm and fire products*. Remote Sensing of Environment, 178, 31–41.
+* **VIIRS 375m Active Fire Product:** NASA/NOAA Suomi-NPP, NOAA-20 (JPSS-1) & NOAA-21 (JPSS-2) Active Fire Products (`VNP14IMGTDL_NRT` / `VJ114IMGTDL_NRT` / `VJ214IMGTDL_NRT`) — Schroeder, W., Oliva, P., Giglio, L., & Csiszar, I. A. (2014). *The New VIIRS 375 m active fire detection data product: Algorithm description and initial assessment*. Remote Sensing of Environment, 143, 85–96.
+* **Biomass & FRE Fundamentals:** Wooster, M. J., Roberts, G., Perry, G. L. W., & Kaufman, Y. J. (2005). *Retrieval of biomass combustion rates and totals from fire radiative power (FRP) measurements*. Journal of Geophysical Research, 110(D24).
+* **NASA Worldview / GIBS:** NASA EOSDIS Worldview for visual smoke-plume verification (`https://worldview.earthdata.nasa.gov/`).
+* **Open-Source Software & Basemap Attributions:** Source code is licensed under the **Apache License 2.0** (see [`LICENSE`](./LICENSE)). Built with Streamlit (Apache 2.0), Folium & Leaflet (MIT / BSD-2-Clause), NumPy & Pandas (BSD-3-Clause), Esri World Imagery, and OpenStreetMap (`© OpenStreetMap contributors`, ODbL).
