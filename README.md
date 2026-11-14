@@ -83,7 +83,7 @@ Parameters ($a = 0.87, b = 1.03$) were calibrated exclusively on the **Abai Regi
 ## 🚀 Quickstart & Local Installation
 
 ### Prerequisites
-* Python 3.10, 3.11, or 3.12
+* Python 3.11+ (recommended: 3.11 – 3.13)
 * Git
 
 ### Installation Steps
@@ -102,6 +102,11 @@ Parameters ($a = 0.87, b = 1.03$) were calibrated exclusively on the **Abai Regi
    pip install -r requirements.txt
    ```
 4. **(Optional) Configure your NASA FIRMS API Key:**
-   Create `.streamlit/secrets.toml` locally (or configure **Secrets** in Streamlit Cloud):
+   Create `.streamlit/secrets.toml` locally (or add it in Streamlit Cloud **Secrets**):
    ```toml
-   NASA_FIRMS_KEY = "YOUR_32
+   NASA_FIRMS_KEY = "YOUR_32_CHARACTER_NASA_FIRMS_MAP_KEY"
+   ```
+5. **Launch the web application:**
+   ```bash
+   streamlit run app.py
+   ```
