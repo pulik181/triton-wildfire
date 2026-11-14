@@ -43,14 +43,19 @@ Per NASA MODIS Collection 6 standards (Giglio et al., 2016), the minimum daytime
 ### 2. Spherical Haversine Clustering & Radiance-Weighted Centroids (`d <= 1.11 km`)
 Fixed coordinate-grid rounding artificially splits single fires straddling grid boundaries. Triton computes exact spherical geodesic distances using the Haversine formula around a radiance-weighted thermal centroid (`w_i = FRP_i * Conf_i / 100`):
 
-$$d = 2R rcsin\left(\sqrt{\sin^2\left(rac{\Delta \phi}{2}ight) + \cos(\phi_1)\cos(\phi_2)\sin^2\left(rac{\Delta \lambda}{2}ight)}ight) \le 1.11	ext{ km}$$
+$$d = 2R rcsin\left(\sqrt{\sin^2\left(rac{\Delta \phi}{2}
+ight) + \cos(\phi_1)\cos(\phi_2)\sin^2\left(rac{\Delta \lambda}{2}
+ight)}
+ight) \le 1.11	ext{ km}$$
 
 When off-nadir scan overlaps produce `n > 3` sub-pixels within a single pass, Triton applies a non-linear confidence filter `(Conf_i / 96)^3.2` to suppress duplicate edge-of-swath detections.
 
 ### 3. Wien–Planck Spectral-Confidence Calibration & Hold-Out Validation
 To reconcile VIIRS I4 (3.74 µm) and MODIS Band 21/22 (3.96 µm) radiometric response curves, Triton Engine v2.0 applies power-law scaling (`a = 0.87, b = 1.03`) coupled with spectral-confidence assimilation:
 
-$$FRP_{	ext{v2}} = 0.65 \cdot \left(a \sum_{i \in 	ext{Cluster}} w_i FRP_{	ext{VIIRS}, i}ight)^b + 0.35 \cdot FRP_{	ext{MODIS}} \left(rac{\overline{C}_{	ext{VIIRS}}}{C_{	ext{MODIS}}}ight)^{0.15}$$
+$$FRP_{	ext{v2}} = 0.65 \cdot \left(a \sum_{i \in 	ext{Cluster}} w_i FRP_{	ext{VIIRS}, i}
+ight)^b + 0.35 \cdot FRP_{	ext{MODIS}} \left(rac{\overline{C}_{	ext{VIIRS}}}{C_{	ext{MODIS}}}
+ight)^{0.15}$$
 
 ---
 
