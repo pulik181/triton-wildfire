@@ -99,6 +99,7 @@ pip install -r requirements.txt
 4. Launch the application:
 streamlit run app.py
 
+
 📂 Repository Structure 
 triton-wildfire/
 ├── .gitignore               # Git exclusion rules
